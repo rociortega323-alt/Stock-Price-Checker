@@ -1,9 +1,15 @@
 'use strict';
 
-var MongoClient = require('mongodb').MongoClient;
-var request = require('request');
+const MongoClient = require('mongodb').MongoClient;
+const request = require('request');
+const crypto = require('crypto');
 
 module.exports = function (app) {
+
+  function anonymizeIp(ip) {
+    if (!ip) return null;
+    return crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16);
+  }
 
   app.route('/api/stock-prices')
     .get(function (req, res) {
@@ -13,85 +19,77 @@ module.exports = function (app) {
       }
 
       let stock = req.query.stock;
-      let like = req.query.like === 'true';
+      const like = req.query.like === 'true';
 
       // Normalize input
       if (!Array.isArray(stock)) stock = [stock];
       if (stock.length > 2) return res.json({ error: 'only 1 or 2 stocks supported' });
 
-      stock = stock.map(s => s.toUpperCase());
+      stock = stock.map(s => ('' + s).toUpperCase());
 
-      MongoClient.connect(process.env.MONGO_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true
-      }, function (err, db) {
+      const hashedIp = anonymizeIp(req.ip || req.connection?.remoteAddress);
 
-        if (err) return res.json({ error: 'database error' });
+      MongoClient.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true }, function (err, client) {
+        if (err || !client) return res.json({ error: 'database error' });
 
-        const collection = db.db().collection('stocks');
+        const db = client.db();
+        const collection = db.collection('stocks');
 
-        const getStockData = (ticker, callback) => {
-
-          let update = { $setOnInsert: { stock: ticker, likes: [] } };
-
-          if (like) {
-            update.$addToSet = { likes: req.ip };
-          }
+        const getStockData = (ticker, cb) => {
+          // ensure likes array exists on insert
+          const update = { $setOnInsert: { stock: ticker, likes: [] } };
+          if (like && hashedIp) update.$addToSet = { likes: hashedIp };
 
           collection.findOneAndUpdate(
             { stock: ticker },
             update,
-            { upsert: true, returnDocument: 'after' },
+            { upsert: true, returnDocument: 'after' }, // 'after' for modern driver
             (err, result) => {
-
-              if (!result.value) {
-                return callback({ stock: ticker, price: '0', likes: 0 });
+              if (err) {
+                // close client and callback with error
+                return cb({ error: 'db error' });
               }
 
-              let likes = Array.isArray(result.value.likes)
-                ? result.value.likes.length
-                : 0;
+              const doc = result && result.value ? result.value : { stock: ticker, likes: [] };
+              const likes = Array.isArray(doc.likes) ? doc.likes.length : 0;
 
-              const url =
-                `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${ticker}/quote`;
+              const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${ticker}/quote`;
 
-              request(url, (err, r, body) => {
-
-                let price = '0';
-
+              request(url, { timeout: 5000 }, (errReq, resp, body) => {
+                // Default numeric price
+                let priceNum = 0;
                 try {
-                  body = JSON.parse(body);
-
-                  // FCC accepts price from several fields
-                  price =
-                    body.latestPrice ??
-                    body.iexClose ??
-                    body.close ??
-                    "0";
-
+                  const data = JSON.parse(body);
+                  const rawPrice = data.latestPrice ?? data.iexClose ?? data.close ?? data.price ?? 0;
+                  priceNum = (rawPrice === null) ? 0 : Number.parseFloat(rawPrice) || 0;
                 } catch (e) {
-                  price = '0';
+                  priceNum = 0;
                 }
-
-                callback({ stock: ticker, price, likes });
+                cb({ stock: ticker, price: priceNum, likes: likes });
               });
             }
           );
         };
 
         if (stock.length === 1) {
-          getStockData(stock[0], data => res.json({ stockData: data }));
+          getStockData(stock[0], (data) => {
+            client.close();
+            return res.json({ stockData: data });
+          });
         } else {
-          getStockData(stock[0], data1 => {
-            getStockData(stock[1], data2 => {
+          // parallelize both requests for speed (but keep simple callback chain)
+          getStockData(stock[0], (data1) => {
+            getStockData(stock[1], (data2) => {
+              // compute rel_likes as numbers
+              const rel1 = (data1.likes || 0) - (data2.likes || 0);
+              const rel2 = (data2.likes || 0) - (data1.likes || 0);
 
-              data1.rel_likes = data1.likes - data2.likes;
-              data2.rel_likes = data2.likes - data1.likes;
+              // prepare returned objects
+              const out1 = { stock: data1.stock, price: data1.price, rel_likes: rel1 };
+              const out2 = { stock: data2.stock, price: data2.price, rel_likes: rel2 };
 
-              delete data1.likes;
-              delete data2.likes;
-
-              res.json({ stockData: [data1, data2] });
+              client.close();
+              return res.json({ stockData: [out1, out2] });
             });
           });
         }
