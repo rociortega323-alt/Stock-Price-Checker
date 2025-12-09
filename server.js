@@ -21,13 +21,14 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // helmet + CSP: permitir solo scripts, styles e imágenes desde 'self'
 app.use(
-  helmet.contentSecurityPolicy({
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'"],
-      imgSrc: ["'self'"]
-    }
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+      },
+    },
   })
 );
 
@@ -46,6 +47,9 @@ fccTestingRoutes(app);
 
 // Routing for API
 apiRoutes(app);
+
+// Allow FCC to access functional test files
+app.use('/_api', express.static(process.cwd() + '/tests'));
 
 // 404
 app.use(function (req, res) {
