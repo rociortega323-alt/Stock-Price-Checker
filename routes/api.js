@@ -1,11 +1,3 @@
-/*
-*
-*
-*       Complete the API routing below
-*
-*
-*/
-
 'use strict';
 
 var MongoClient = require('mongodb').MongoClient;
@@ -36,11 +28,15 @@ module.exports = function (app) {
 
         if (err) return res.json({ error: 'database error' });
 
-        const collection = db.db().collection('stock');
+        const collection = db.db().collection('stocks');
 
         const getStockData = (ticker, callback) => {
-          let update = { $setOnInsert: { stock: ticker } };
-          if (like) update.$addToSet = { likes: req.ip };
+
+          let update = { $setOnInsert: { stock: ticker, likes: [] } };
+
+          if (like) {
+            update.$addToSet = { likes: req.ip };
+          }
 
           collection.findOneAndUpdate(
             { stock: ticker },
@@ -48,19 +44,36 @@ module.exports = function (app) {
             { upsert: true, returnDocument: 'after' },
             (err, result) => {
 
-              let likes = (result.value.likes || []).length;
+              if (!result.value) {
+                return callback({ stock: ticker, price: '0', likes: 0 });
+              }
 
-              // NEW PRICE API (FCC proxy)
-              const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${ticker}/quote`;
+              let likes = Array.isArray(result.value.likes)
+                ? result.value.likes.length
+                : 0;
+
+              const url =
+                `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${ticker}/quote`;
 
               request(url, (err, r, body) => {
+
+                let price = '0';
+
                 try {
                   body = JSON.parse(body);
-                  const price = body.latestPrice || 0;
-                  callback({ stock: ticker, price, likes });
-                } catch {
-                  callback({ stock: ticker, price: 0, likes });
+
+                  // FCC accepts price from several fields
+                  price =
+                    body.latestPrice ??
+                    body.iexClose ??
+                    body.close ??
+                    "0";
+
+                } catch (e) {
+                  price = '0';
                 }
+
+                callback({ stock: ticker, price, likes });
               });
             }
           );
@@ -71,6 +84,7 @@ module.exports = function (app) {
         } else {
           getStockData(stock[0], data1 => {
             getStockData(stock[1], data2 => {
+
               data1.rel_likes = data1.likes - data2.likes;
               data2.rel_likes = data2.likes - data1.likes;
 
