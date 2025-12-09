@@ -43,30 +43,29 @@ module.exports = function (app) {
           collection.findOneAndUpdate(
             { stock: ticker },
             update,
-            { upsert: true, returnDocument: 'after' }, // 'after' for modern driver
+            { upsert: true, returnDocument: 'after' },
             (err, result) => {
-              if (err) {
-                // close client and callback with error
-                return cb({ error: 'db error' });
-              }
+              
+              if (err) return cb({ error: 'db error' });
 
               const doc = result && result.value ? result.value : { stock: ticker, likes: [] };
               const likes = Array.isArray(doc.likes) ? doc.likes.length : 0;
 
-              const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${ticker}/quote`;
+              const url =
+  `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${process.env.ALPHA_KEY}`;
 
-              request(url, { timeout: 5000 }, (errReq, resp, body) => {
-                // Default numeric price
-                let priceNum = 0;
-                try {
-                  const data = JSON.parse(body);
-                  const rawPrice = data.latestPrice ?? data.iexClose ?? data.close ?? data.price ?? 0;
-                  priceNum = (rawPrice === null) ? 0 : Number.parseFloat(rawPrice) || 0;
-                } catch (e) {
-                  priceNum = 0;
-                }
-                cb({ stock: ticker, price: priceNum, likes: likes });
-              });
+request(url, { timeout: 5000 }, (errReq, resp, body) => {
+  let priceNum = 0;
+  try {
+    const data = JSON.parse(body);
+    const rawPrice = data["Global Quote"]?.["05. price"];
+    priceNum = Number.parseFloat(rawPrice) || 0;
+  } catch (e) {
+    priceNum = 0;
+  }
+  cb({ stock: ticker, price: priceNum, likes: likes });
+});
+
             }
           );
         };
