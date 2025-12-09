@@ -1,0 +1,35 @@
+{
+	"name": "freecodecamp-project-stock-checker",
+	"description": "freeCodeCamp - Information Security and Quality Assurance Project: Stock Price Checker",
+	"version": "1.0.0",
+	"author": "Adam",
+	"keywords": [
+		"node",
+		"express",
+		"freecodecamp"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Adam777Z/freecodecamp-project-stock-checker.git"
+	},
+	"license": "MIT",
+	"dependencies": {
+		"express": "^4.18.1",
+		"cors": "^2.8.5",
+		"body-parser": "^1.20.0",
+		"mongodb": "^4.8.0",
+		"mocha": "^10.0.0",
+		"chai": "^4.3.6",
+		"chai-http": "^4.3.0",
+		"zombie": "^6.1.4",
+		"helmet": "^5.1.1",
+		"request": "^2.88.2"
+	},
+	"main": "server.js",
+	"scripts": {
+		"start": "node server.js"
+	},
+	"engines": {
+		"node": ">=16.12.0"
+	}
+}
