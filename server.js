@@ -1,25 +1,26 @@
 'use strict';
 
-var express = require('express');
-var bodyParser = require('body-parser');
-var cors = require('cors');
+const express = require('express');
+const cors = require('cors');
 const helmet = require('helmet');
 
-var apiRoutes = require('./routes/api.js');
-var fccTestingRoutes = require('./routes/fcctesting.js');
-var runner = require('./test-runner');
+const apiRoutes = require('./routes/api.js');
+const fccTestingRoutes = require('./routes/fcctesting.js');
+const runner = require('./test-runner');
 
-var app = express();
+const app = express();
 
+// ---------- STATIC ----------
 app.use('/public', express.static(process.cwd() + '/public'));
 
+// ---------- CORS ----------
 app.use(cors());
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// ---------- BODY PARSING ----------
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-
-// helmet + CSP: permitir solo scripts, styles e imágenes desde 'self'
+// ---------- SECURITY: Helmet + CSP ----------
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -27,43 +28,46 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:"],   // necesario para FCC logo
+        connectSrc: ["'self'"],        // evita llamadas externas no deseadas
+        objectSrc: ["'none'"],
       },
     },
   })
 );
 
+// ---------- FCC: Detect IP correctly ----------
+app.enable('trust proxy'); 
 
-// Required so FCC tests detect IP properly
-app.enable('trust proxy');
-
-// Index page
+// ---------- FRONTEND ----------
 app.route('/')
-  .get(function (req, res) {
+  .get((req, res) => {
     res.sendFile(process.cwd() + '/views/index.html');
   });
 
-// FCC testing routes
+// ---------- FCC TESTING ----------
 fccTestingRoutes(app);
 
-app.use('/_api', (req, res, next) => {
-  res.json({
-    status: 'FCC API OK'
-  });
+// Needed so freeCodeCamp tests detect server is alive
+app.use('/_api', (req, res) => {
+  res.json({ status: 'FCC API OK' });
 });
 
-// Routing for API
+// ---------- PROJECT API ----------
 apiRoutes(app);
 
-// 404
-app.use(function (req, res) {
+// ---------- 404 HANDLER ----------
+app.use((req, res) => {
   res.status(404).type('text').send('Not Found');
 });
 
-const listener = app.listen(process.env.PORT || 3000, function () {
+// ---------- SERVER ----------
+const listener = app.listen(process.env.PORT || 3000, () => {
   console.log('Listening on port ' + listener.address().port);
+
   if (process.env.NODE_ENV === 'test') {
     console.log('Running Tests...');
-    setTimeout(function () {
+    setTimeout(() => {
       try {
         runner.run();
       } catch (e) {

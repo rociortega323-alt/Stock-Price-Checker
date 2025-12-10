@@ -4,17 +4,18 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Nasdaq Stock Price Checker</title>
-	<meta name="description" content="freeCodeCamp - Information Security and Quality Assurance Project: Stock Price Checker">
+	
 	<link rel="icon" type="image/x-icon" href="/public/favicon.ico">
-	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<link rel="stylesheet" href="/public/bootstrap.min.css">
 	<link rel="stylesheet" href="/public/style.css">
 </head>
+
 <body>
 	<div class="container">
 		<div class="p-4 my-4 bg-light rounded-3">
 			<div class="row">
 				<div class="col">
+
 					<header>
 						<h1 id="title" class="text-center">Nasdaq Stock Price Checker</h1>
 					</header>
@@ -22,98 +23,102 @@
 					<div id="userstories">
 						<h3>User Stories:</h3>
 						<ol>
-							<li>Set the content security policies to only allow loading of scripts and CSS from your server. (this was ignored to allow scripts so the forms below work)</li>
-							<li>I can <b>GET</b> <code>/api/stock-prices</code> with form data containing a Nasdaq <i>stock</i> ticker and recieve back an object <i>stockData</i>.</li>
-							<li>In <i>stockData</i>, I can see the <i>stock</i> (string, the ticker), <i>price</i> (decimal), and <i>likes</i> (int).</li>
-							<li>I can also pass along field <i>like</i> as <b>true</b> (boolean) to have my like added to the stock(s). Only 1 like per IP address should be accepted.</li>
-							<li>If I pass along 2 stocks, the return object will be an array with both stock's info but instead of <i>likes</i>, it will display <i>rel_likes</i> (the difference between the likes on both) on both.</li>
-							<li>A good way to receive the current price is the following external API (replace 'goog' with the stock):<br> <code>https://www.alphavantage.co/query?function=global_quote&symbol=goog&apikey=YOUR_API_KEY_HERE</code><br> (Get your free API key <a href="https://www.alphavantage.co/support/#api-key" target="_blank">here</a>)</li>
-							<li>All 5 functional tests are complete and passing.</li>
+							<li>Set the content security policies...</li>
+							<li>I can <b>GET</b> <code>/api/stock-prices</code>...</li>
+							<li>In <i>stockData</i>, I can see the <i>stock</i>, <i>price</i>, and <i>likes</i>.</li>
+							<li>I can pass <i>like=true</i>...</li>
+							<li>If I pass 2 stocks...</li>
+							<li>A good way to receive price...</li>
+							<li>All tests are passing.</li>
 						</ol>
+
 						<h3>Example usage:</h3>
 						<ul>
-							<li><code><a href="/api/stock-prices?stock=goog" target="_blank">/api/stock-prices?stock=goog</a></code></li>
-							<li><code><a href="/api/stock-prices?stock=goog&like=true" target="_blank">/api/stock-prices?stock=goog&amp;like=true</a></code></li>
-							<li><code><a href="/api/stock-prices?stock=msft" target="_blank">/api/stock-prices?stock=msft</a></code></li>
-							<li><code><a href="/api/stock-prices?stock=msft&like=true" target="_blank">/api/stock-prices?stock=msft&amp;like=true</a></code></li>
-							<li><code><a href="/api/stock-prices?stock=goog&stock=msft" target="_blank">/api/stock-prices?stock=goog&amp;stock=msft</a></code></li>
-							<li><code><a href="/api/stock-prices?stock=goog&stock=msft&like=true" target="_blank">/api/stock-prices?stock=goog&amp;stock=msft&amp;like=true</a></code></li>
+							<li><a href="/api/stock-prices?stock=goog" target="_blank">/api/stock-prices?stock=goog</a></li>
+							<li><a href="/api/stock-prices?stock=goog&like=true" target="_blank">/api/stock-prices?stock=goog&amp;like=true</a></li>
+							<li><a href="/api/stock-prices?stock=msft" target="_blank">/api/stock-prices?stock=msft</a></li>
+							<li><a href="/api/stock-prices?stock=msft&like=true" target="_blank">/api/stock-prices?stock=msft&amp;like=true</a></li>
+							<li><a href="/api/stock-prices?stock=goog&stock=msft" target="_blank">/api/stock-prices?stock=goog&amp;stock=msft</a></li>
+							<li><a href="/api/stock-prices?stock=goog&stock=msft&like=true" target="_blank">/api/stock-prices?stock=goog&amp;stock=msft&amp;like=true</a></li>
 						</ul>
+
 						<h3>Example return:</h3>
-						<p>
-							<code>{"stockData":{"stock":"GOOG","price":0,"likes":0}}</code><br>
-							<code>{"stockData":[{"stock":"GOOG","price":0,"rel_likes":0},{"stock":"MSFT","price":0,"rel_likes":0}]}</code>
-						</p>
+						<code>{"stockData":{"stock":"GOOG","price":0,"likes":0}}</code><br>
+						<code>{"stockData":[{"stock":"GOOG","price":0,"rel_likes":0},{"stock":"MSFT","price":0,"rel_likes":0}]}</code>
 					</div>
 
 					<hr>
 
 					<div id="testui">
 						<h2>Front-End:</h2>
+
 						<div class="row">
+
 							<div class="col">
-								<h3>Get single price and total likes</h3>
+								<h3>Get single price and likes</h3>
 								<form class="testForm d-flex align-items-center">
 									<input type="text" class="form-control me-2" name="stock" placeholder="goog" required>
 									<div class="form-check me-2">
-										<input type="checkbox" name="like" id="likeCheckbox" class="form-check-input" value="true">
-										<label for="likeCheckbox" class="form-check-label">Like</label>
+										<input type="checkbox" name="like" class="form-check-input" value="true">
+										<label class="form-check-label">Like</label>
 									</div>
-									<button type="submit" class="btn btn-primary">Get Price</button>
+									<button class="btn btn-primary">Get Price</button>
 								</form>
 							</div>
+
 							<div class="col">
-								<h3>Compare and get relative likes</h3>
+								<h3>Compare stocks</h3>
 								<form class="testForm d-flex align-items-center">
 									<input type="text" class="form-control me-2" name="stock" placeholder="goog" required>
 									<input type="text" class="form-control me-2" name="stock" placeholder="msft" required>
 									<div class="form-check me-2">
-										<input type="checkbox" name="like" id="likeBothCheckbox" class="form-check-input" value="true">
-										<label for="likeBothCheckbox" class="form-check-label">Like both</label>
+										<input type="checkbox" name="like" class="form-check-input" value="true">
+										<label class="form-check-label">Like both</label>
 									</div>
-									<button type="submit" class="btn btn-primary">Get Price</button>
+									<button class="btn btn-primary">Get Price</button>
 								</form>
 							</div>
+
 						</div>
 
 						<p class="mt-2">
-							<code id="jsonResult"></code>
+							<pre><code id="jsonResult"></code></pre>
 						</p>
+
 					</div>
 
 					<hr>
 
-					<div class="footer text-center"><a href="https://www.alphavantage.co/documentation/#latestprice" target="_blank">Data</a> provided by <a href="https://www.alphavantage.co" target="_blank">Alpha Vantage</a><br>by <a href="https://www.freecodecamp.org" target="_blank">freeCodeCamp</a> (ISQA5) & <a href="https://www.freecodecamp.org/adam777" target="_blank">Adam</a> | <a href="https://github.com/Adam777Z/freecodecamp-project-stock-checker" target="_blank">GitHub</a></div>
+					<div class="footer text-center">
+						Data © Alpha Vantage — Project by freeCodeCamp
+					</div>
+
 				</div>
 			</div>
 		</div>
 	</div>
 
 	<script>
-	document.addEventListener('DOMContentLoaded', (event) => {
-		document.querySelectorAll('.testForm').forEach((e) => {
-			e.addEventListener('submit', (event2) => {
-				event2.preventDefault();
+	document.addEventListener('DOMContentLoaded', () => {
+		document.querySelectorAll('.testForm').forEach(form => {
+			form.addEventListener('submit', async (e) => {
+				e.preventDefault();
 
-				fetch('/api/stock-prices?' + new URLSearchParams(new FormData(event2.target)).toString(), {
-					'method': 'GET'
-				})
-				.then((response) => {
-					if (response['ok']) {
-						return response.json();
-					} else {
-						throw 'Error';
-					}
-				})
-				.then((data) => {
-					document.querySelector('#jsonResult').textContent = JSON.stringify(data);
-				})
-				.catch((error) => {
-					console.log(error);
-				});
+				try {
+					const params = new URLSearchParams(new FormData(form));
+					const res = await fetch('/api/stock-prices?' + params.toString());
+					const json = await res.json();
+
+					document.querySelector('#jsonResult').textContent =
+						JSON.stringify(json, null, 2);
+
+				} catch (err) {
+					console.error(err);
+				}
 			});
 		});
 	});
 	</script>
+
 </body>
 </html>
