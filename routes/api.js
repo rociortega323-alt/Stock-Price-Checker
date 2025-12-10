@@ -6,15 +6,12 @@ const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...ar
 
 // ---------- GLOBAL DATABASE CONNECTION ----------
 let db = null;
-
 async function getDb() {
   if (db) return db;
-
   const client = await MongoClient.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
   });
-
   db = client.db();
   return db;
 }
@@ -25,72 +22,58 @@ function anonymizeIp(ip) {
   return crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16);
 }
 
+// Fetch price using Alpha Vantage
 async function fetchStockPrice(ticker) {
   try {
-    // Intento con proxy FreeCodeCamp
-    const urlProxy = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${ticker}/quote`;
-    const resProxy = await fetch(urlProxy);
-    const dataProxy = await resProxy.json();
-    if (dataProxy && dataProxy.latestPrice) return Number(dataProxy.latestPrice);
-
-    // Alternativa Alpha Vantage
     const urlAlpha = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${process.env.ALPHA_KEY}`;
-    const resAlpha = await fetch(urlAlpha);
-    const dataAlpha = await resAlpha.json();
-    return Number(dataAlpha['Global Quote']['05. price']) || 0;
-  } catch (_) {
+    const res = await fetch(urlAlpha);
+    const data = await res.json();
+    const price = data['Global Quote']?.['05. price'];
+    return Number(price) || 0;
+  } catch (err) {
+    console.error('Error fetching stock price:', err);
     return 0;
   }
 }
 
 module.exports = function (app) {
-
   app.route('/api/stock-prices')
     .get(async (req, res) => {
-
-      if (!req.query.stock) {
-        return res.json({ error: 'stock is required' });
-      }
+      if (!req.query.stock) return res.json({ error: 'stock is required' });
 
       let stocks = req.query.stock;
       const like = req.query.like === 'true';
       const hashedIp = anonymizeIp(req.ip);
 
-      if (!Array.isArray(stocks)) {
-        stocks = [stocks];
-      }
-
-      if (stocks.length > 2) {
-        return res.json({ error: 'only 1 or 2 stocks supported' });
-      }
+      if (!Array.isArray(stocks)) stocks = [stocks];
+      if (stocks.length > 2) return res.json({ error: 'only 1 or 2 stocks supported' });
 
       stocks = stocks.map(s => ('' + s).toUpperCase());
-
       const db = await getDb();
       const collection = db.collection('stocks');
 
+      // Get or create stock document
       async function getStock(ticker) {
-        const update = { $setOnInsert: { stock: ticker, likes: [] } };
-        if (like && hashedIp) {
-          update.$addToSet = { likes: hashedIp };
+        const existingDoc = await collection.findOne({ stock: ticker });
+
+        if (existingDoc) {
+          if (like && hashedIp) {
+            await collection.updateOne(
+              { stock: ticker },
+              { $addToSet: { likes: hashedIp } }
+            );
+            existingDoc.likes.push(hashedIp);
+          }
+          const likes = Array.isArray(existingDoc.likes) ? existingDoc.likes.length : 0;
+          const price = await fetchStockPrice(ticker);
+          return { stock: ticker, price, likes };
+        } else {
+          const newDoc = { stock: ticker, likes: like && hashedIp ? [hashedIp] : [] };
+          await collection.insertOne(newDoc);
+          const likes = newDoc.likes.length;
+          const price = await fetchStockPrice(ticker);
+          return { stock: ticker, price, likes };
         }
-
-        const result = await collection.findOneAndUpdate(
-          { stock: ticker },
-          update,
-          { upsert: true, returnDocument: 'after' }
-        );
-
-        const doc = result.value || { stock: ticker, likes: [] };
-        const likes = Array.isArray(doc.likes) ? doc.likes.length : 0;
-
-        const price = await fetchStockPrice(ticker);
-
-        return {
-          stock: ticker,
-          price,
-          likes
-        };
       }
 
       // ---------- ONE STOCK ----------
@@ -112,7 +95,5 @@ module.exports = function (app) {
           { stock: s2.stock, price: s2.price, rel_likes: relLikes2 }
         ]
       });
-
     });
-
 };
