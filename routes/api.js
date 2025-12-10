@@ -26,23 +26,21 @@ function anonymizeIp(ip) {
 }
 
 async function fetchStockPrice(ticker) {
-  // 1️⃣ Precios fijos para pruebas FCC
-  const examplePrices = { GOOG: 100, MSFT: 200, AAPL: 150 };
-  if (examplePrices[ticker]) return examplePrices[ticker];
-
-  // 2️⃣ Intentar fetch real como fallback
   try {
     const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${ticker}/quote`;
+
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+    const timeout = setTimeout(() => controller.abort(), 5000);
 
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeout);
 
     const data = await res.json();
-    return Number(data?.latestPrice) || 0;
+    if (!data || !data.latestPrice) return null;
+
+    return Number(data.latestPrice);
   } catch (_) {
-    return 0; // fallback seguro
+    return null;
   }
 }
 
@@ -59,13 +57,8 @@ module.exports = function (app) {
       const like = req.query.like === 'true';
       const hashedIp = anonymizeIp(req.ip);
 
-      if (!Array.isArray(stocks)) {
-        stocks = [stocks];
-      }
-
-      if (stocks.length > 2) {
-        return res.json({ error: 'only 1 or 2 stocks supported' });
-      }
+      if (!Array.isArray(stocks)) stocks = [stocks];
+      if (stocks.length > 2) return res.json({ error: 'only 1 or 2 stocks supported' });
 
       stocks = stocks.map(s => ('' + s).toUpperCase());
 
@@ -73,37 +66,40 @@ module.exports = function (app) {
       const collection = db.collection('stocks');
 
       async function getStock(ticker) {
-        const update = { $setOnInsert: { stock: ticker, likes: [] } };
+        // 1️⃣ Intentar encontrar el documento
+        let doc = await collection.findOne({ stock: ticker });
 
-        if (like && hashedIp) {
-          update.$addToSet = { likes: hashedIp };
+        // 2️⃣ Si no existe, crearlo
+        if (!doc) {
+          await collection.insertOne({ stock: ticker, likes: [] });
+          doc = await collection.findOne({ stock: ticker });
         }
 
-        const result = await collection.findOneAndUpdate(
-          { stock: ticker },
-          update,
-          { upsert: true, returnDocument: 'after' }
-        );
-
-        const doc = result.value || { stock: ticker, likes: [] };
-        const likes = Array.isArray(doc.likes) ? doc.likes.length : 0;
+        // 3️⃣ Agregar like si corresponde y si no existe ya
+        if (like && hashedIp && !doc.likes.includes(hashedIp)) {
+          await collection.updateOne(
+            { stock: ticker },
+            { $push: { likes: hashedIp } }
+          );
+          doc.likes.push(hashedIp); // actualizar local
+        }
 
         const price = await fetchStockPrice(ticker);
 
         return {
           stock: ticker,
-          price: price,
-          likes
+          price: price ?? 0,
+          likes: doc.likes.length
         };
       }
 
-      // ---------- ONE STOCK ----------
+      // ---------- UN SOLO STOCK ----------
       if (stocks.length === 1) {
         const data = await getStock(stocks[0]);
         return res.json({ stockData: data });
       }
 
-      // ---------- TWO STOCKS ----------
+      // ---------- DOS STOCKS ----------
       const s1 = await getStock(stocks[0]);
       const s2 = await getStock(stocks[1]);
 
