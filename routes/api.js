@@ -27,20 +27,15 @@ function anonymizeIp(ip) {
 
 async function fetchStockPrice(ticker) {
   try {
-    const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${ticker}/quote`;
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
-
+    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${process.env.ALPHA_KEY}`;
+    const res = await fetch(url);
     const data = await res.json();
-    if (!data || !data.latestPrice) return null;
 
-    return Number(data.latestPrice);
+    if (!data || !data["Global Quote"] || !data["Global Quote"]["05. price"]) return 0;
+
+    return Number(data["Global Quote"]["05. price"]);
   } catch (_) {
-    return null;
+    return 0;
   }
 }
 
@@ -57,8 +52,13 @@ module.exports = function (app) {
       const like = req.query.like === 'true';
       const hashedIp = anonymizeIp(req.ip);
 
-      if (!Array.isArray(stocks)) stocks = [stocks];
-      if (stocks.length > 2) return res.json({ error: 'only 1 or 2 stocks supported' });
+      if (!Array.isArray(stocks)) {
+        stocks = [stocks];
+      }
+
+      if (stocks.length > 2) {
+        return res.json({ error: 'only 1 or 2 stocks supported' });
+      }
 
       stocks = stocks.map(s => ('' + s).toUpperCase());
 
@@ -66,48 +66,50 @@ module.exports = function (app) {
       const collection = db.collection('stocks');
 
       async function getStock(ticker) {
-        // Obtener o crear documento
-        let doc = await collection.findOne({ stock: ticker });
-        if (!doc) {
-          await collection.insertOne({ stock: ticker, likes: [] });
-          doc = await collection.findOne({ stock: ticker });
+        const update = { $setOnInsert: { stock: ticker, likes: [] } };
+
+        if (like && hashedIp) {
+          update.$addToSet = { likes: hashedIp };
         }
 
-        // Actualizar likes si corresponde
-        if (like && hashedIp && !doc.likes.includes(hashedIp)) {
-          await collection.updateOne(
-            { stock: ticker },
-            { $push: { likes: hashedIp } }
-          );
-          doc.likes.push(hashedIp);
-        }
+        const result = await collection.findOneAndUpdate(
+          { stock: ticker },
+          update,
+          { upsert: true, returnDocument: 'after' }
+        );
 
-        // Obtener precio actual
+        const doc = result.value || { stock: ticker, likes: [] };
+        const likes = Array.isArray(doc.likes) ? doc.likes.length : 0;
+
         const price = await fetchStockPrice(ticker);
 
         return {
           stock: ticker,
-          price: price ?? 0,
-          likes: doc.likes.length
+          price: price,
+          likes
         };
       }
 
-      // ---------- PROCESAR TODOS LOS STOCKS EN PARALELO ----------
-      const stockDocs = await Promise.all(stocks.map(t => getStock(t)));
-
-      if (stockDocs.length === 1) {
-        return res.json({ stockData: stockDocs[0] });
-      } else {
-        const relLikes1 = stockDocs[0].likes - stockDocs[1].likes;
-        const relLikes2 = stockDocs[1].likes - stockDocs[0].likes;
-
-        return res.json({
-          stockData: [
-            { stock: stockDocs[0].stock, price: stockDocs[0].price, rel_likes: relLikes1 },
-            { stock: stockDocs[1].stock, price: stockDocs[1].price, rel_likes: relLikes2 }
-          ]
-        });
+      // ---------- ONE STOCK ----------
+      if (stocks.length === 1) {
+        const data = await getStock(stocks[0]);
+        return res.json({ stockData: data });
       }
+
+      // ---------- TWO STOCKS ----------
+      const s1 = await getStock(stocks[0]);
+      const s2 = await getStock(stocks[1]);
+
+      const relLikes1 = s1.likes - s2.likes;
+      const relLikes2 = s2.likes - s1.likes;
+
+      return res.json({
+        stockData: [
+          { stock: s1.stock, price: s1.price, rel_likes: relLikes1 },
+          { stock: s2.stock, price: s2.price, rel_likes: relLikes2 }
+        ]
+      });
+
     });
 
 };
