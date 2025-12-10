@@ -26,16 +26,10 @@ function anonymizeIp(ip) {
 }
 
 async function fetchStockPrice(ticker) {
-  const t = ticker.toUpperCase();
-
-  // Precios fijos para FCC tests
-  if (t === 'GOOG') return 100;
-  if (t === 'MSFT') return 200;
-
   try {
     const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${ticker}/quote`;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000); // 4s timeout
+    const timeout = setTimeout(() => controller.abort(), 4000);
 
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeout);
@@ -72,7 +66,7 @@ module.exports = function (app) {
 
       async function getStock(ticker) {
         try {
-          const update = { $setOnInsert: { stock: ticker } };
+          const update = { $setOnInsert: { stock: ticker, likes: [] } };
           if (like && hashedIp) update.$addToSet = { likes: hashedIp };
 
           const result = await collection.findOneAndUpdate(
